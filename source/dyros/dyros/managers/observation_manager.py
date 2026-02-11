@@ -146,16 +146,17 @@ class DyrosObservationManager(ObservationManager):
             idx = 0
             # add info for each term
             data = obs_buffer[group_name]
-            for name, shape in zip(
+            for name, term_cfg, shape in zip(
                 self._group_obs_term_names[group_name],
+                self._group_obs_term_cfgs[group_name],
                 self._group_obs_term_dim[group_name],
             ):
                 data_length = np.prod(shape)
                 # term = data[env_idx, idx : idx + data_length]
                 # yongarry edit: only vizualizing the current observation, not the history
-                term = data[env_idx, idx : idx + (data_length // self._group_obs_term_history_buffer[group_name][name].max_length)]                
+                term = data[env_idx, idx : idx + (data_length // (self._group_obs_term_history_buffer[group_name][name].max_length // term_cfg.skip_history_tick))]                
                 terms.append((group_name + "-" + name, term.cpu().tolist()))
-                idx += data_length // self._group_obs_term_history_buffer[group_name][name].max_length
+                idx += data_length // (self._group_obs_term_history_buffer[group_name][name].max_length // term_cfg.skip_history_tick)
 
         return terms
 
