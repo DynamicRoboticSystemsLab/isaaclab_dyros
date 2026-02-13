@@ -1,7 +1,7 @@
 # IsaacLab Dyros Reinforcement Learning Environment
 
 This reinforcement learning environment is configured to work with:
-- **IsaacLab** version 2.3.1
+- **IsaacLab** version 2.3.2
 - **rsl-rl-lib** version 3.2.0
 - **Isaac Sim** version 5.1.0
 - **Ubuntu** version $\ge$ 22.04
@@ -9,8 +9,8 @@ This reinforcement learning environment is configured to work with:
 ## Prerequisites
 
 Before installing this environment, you must have the following installed:
-- **IsaacLab** version 2.3.1
-- **Isaac Sim** version 5.1.0
+- **IsaacLab** version 2.3.2
+- **Isaac Sim** version 5.1.0 (It also works for version 4.5.0, but minor bugs will likely occur.)
 
 Please refer to the official IsaacLab and Isaac Sim documentation for installation instructions.
 Or you can refer this [notion manual](https://yongarry.notion.site/isaaclab-install)
