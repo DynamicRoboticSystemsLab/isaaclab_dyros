@@ -22,11 +22,52 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from dyros.terrains.config.rough import ROUGH_TERRAINS_CUSTOMCFG
 
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as Gnoise
+from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg
 
 ##
 # Pre-defined configs
 ##
-from dyros_assets import Tocabi_CFG  # isort: skip
+# from dyros_assets import Tocabi_CFG  # isort: skip
+from dyros_assets import TocabiXML_CFG  # isort: skip
+
+def _obs_noise_cfg(
+    term_name: str,
+    noise_cfg,
+    bias_cfg,
+):
+    """Build per-term observation corruption from legacy noise/bias config."""
+    step_noise_cfg = None
+    if noise_cfg.add_noise:
+        scale = float(getattr(noise_cfg.noise_scales, term_name, 0.0))
+        magnitude = float(noise_cfg.noise_level) * scale
+        if magnitude > 0.0:
+            if noise_cfg.noise_dist == "gaussian":
+                step_noise_cfg = Gnoise(mean=0.0, std=magnitude, operation="add")
+            elif noise_cfg.noise_dist == "uniform":
+                step_noise_cfg = Unoise(n_min=-magnitude, n_max=magnitude, operation="add")
+            else:
+                raise ValueError(f"Unsupported noise_dist: {noise_cfg.noise_dist}")
+
+    bias_noise_cfg = None
+    if bias_cfg.add_bias:
+        magnitude = float(getattr(bias_cfg.bias_scales, term_name, 0.0))
+        if magnitude > 0.0:
+            if bias_cfg.bias_dist == "uniform":
+                bias_noise_cfg = Unoise(n_min=-magnitude, n_max=magnitude, operation="add")
+            elif bias_cfg.bias_dist == "gaussian":
+                bias_noise_cfg = Gnoise(mean=0.0, std=magnitude, operation="add")
+            else:
+                raise ValueError(f"Unsupported bias_dist: {bias_cfg.bias_dist}")
+
+    if bias_noise_cfg is not None:
+        if step_noise_cfg is None:
+            step_noise_cfg = Gnoise(mean=0.0, std=0.0, operation="add")
+        return NoiseModelWithAdditiveBiasCfg(
+            noise_cfg=step_noise_cfg,
+            bias_noise_cfg=bias_noise_cfg,
+        )
+    return step_noise_cfg
 
 @configclass
 class TocabiActionsCfg:
@@ -98,26 +139,57 @@ class TocabiObservations(ObservationsCfg):
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
+        class noise:
+            add_noise = True
+            noise_level = 1e-5
+            noise_dist = "gaussian"  # "gaussian" or "uniform"
+
+            class noise_scales:
+                base_lin_vel = 3000.0
+                base_ang_vel = 3000.0
+                projected_gravity = 2000.0
+                joint_pos = 5.0
+                joint_vel = 2000.0
+                height_scan = 1.0
+
+        class bias:
+            add_bias = True
+            bias_dist = "uniform"  # "uniform" or "gaussian"
+
+            class bias_scales:
+                base_ang_vel = 0.02
+                projected_gravity = 0.02
+                joint_pos = 0.03
+                height_scan = 0.03
 
         # observation terms (order preserved)
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_lin_vel = ObsTerm(
+            func=mdp.base_lin_vel,
+            noise=_obs_noise_cfg("base_lin_vel", noise, bias),
+        )
+        base_ang_vel = ObsTerm(
+            func=mdp.base_ang_vel,
+            noise=_obs_noise_cfg("base_ang_vel", noise, bias),
+        )
+        projected_gravity = ObsTerm(
+            func=mdp.projected_gravity,
+            noise=_obs_noise_cfg("projected_gravity", noise, bias),
+        )
         clock_input = ObsTerm(func=mdp.clock_input, params={"command_name": "phase_time"})
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         joint_pos = ObsTerm(func=mdp.joint_pos_ordered_rel, 
-                            noise=Unoise(n_min=-0.1, n_max=0.1),
+                            noise=_obs_noise_cfg("joint_pos", noise, bias),
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["L_HipYaw_Joint", "L_HipRoll_Joint", "L_HipPitch_Joint", "L_Knee_Joint", "L_AnklePitch_Joint", "L_AnkleRoll_Joint",
                                                                                      "R_HipYaw_Joint", "R_HipRoll_Joint", "R_HipPitch_Joint", "R_Knee_Joint", "R_AnklePitch_Joint", "R_AnkleRoll_Joint"])})
         joint_vel = ObsTerm(func=mdp.joint_vel_ordered, 
-                            noise=Unoise(n_min=-0.1, n_max=0.1),
+                            noise=_obs_noise_cfg("joint_vel", noise, bias),
                             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["L_HipYaw_Joint", "L_HipRoll_Joint", "L_HipPitch_Joint", "L_Knee_Joint", "L_AnklePitch_Joint", "L_AnkleRoll_Joint",
                                                                                      "R_HipYaw_Joint", "R_HipRoll_Joint", "R_HipPitch_Joint", "R_Knee_Joint", "R_AnklePitch_Joint", "R_AnkleRoll_Joint"])})
         actions = ObsTerm(func=mdp.last_processed_action, params={"action_name": "joint_pos"})
         height_scan = ObsTerm(
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            noise=Unoise(n_min=-0.1, n_max=0.1),
+            noise=_obs_noise_cfg("height_scan", noise, bias),
             clip=(-1.0, 1.0),
         )
 
@@ -174,7 +246,8 @@ class TocabiTerminations:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="Pelvis_Link"), "threshold": 1.0},
+        # params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="Pelvis_Link"), "threshold": 1.0},
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base_link"), "threshold": 1.0},
     )
     root_bad_orientation = DoneTerm(
         func=mdp.bad_orientation,
@@ -247,10 +320,15 @@ class TocabiRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # post init of parent
         super().__post_init__()
         # Scene
-        self.scene.robot = Tocabi_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # self.scene.robot = Tocabi_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = TocabiXML_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if self.scene.height_scanner:
-            self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/Pelvis_Link"
-        
+            # self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/Pelvis_Link"
+            self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base_link/base_link"
+        # The MJCF-converted USD places all rigid body links flat under an outer
+        # "base_link" joint-frame prim. Update the contact sensor path accordingly.
+        if self.scene.contact_forces is not None:
+            self.scene.contact_forces.prim_path = "{ENV_REGEX_NS}/Robot/base_link/.*"
 
         self.decimation = 2
         self.episode_length_s = 10.0

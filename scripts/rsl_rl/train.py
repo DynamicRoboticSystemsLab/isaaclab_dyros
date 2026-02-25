@@ -225,6 +225,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     print(f"Training time: {round(time.time() - start_time, 2)} seconds")
 
+    # finish wandb run before closing the simulator so the sync thread is not killed abruptly
+    if agent_cfg.logger == "wandb":
+        try:
+            import wandb
+            if wandb.run is not None:
+                wandb.finish()
+        except Exception:
+            pass
+
     # close the simulator
     env.close()
 

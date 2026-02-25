@@ -66,13 +66,15 @@ class TocabiFlatEnvCfg_PLAY(TocabiFlatEnvCfg):
         self.episode_length_s = 10.0
         self.scene.num_envs = 16
         self.scene.env_spacing = 2.5
-        self.viewer.resolution = (2560, 1440)
-        # self.viewer.resolution = (1920, 1080)
-        self.viewer.eye = (-3.0, 3.0, 1.3)
-        self.viewer.lookat = (0.0, 0.0, 0.0)
-        self.viewer.origin_type = "asset_root"
-        self.viewer.asset_name = "robot"
-        self.viewer.env_index = -1
+        
+        
+        # self.viewer.resolution = (2560, 1440)
+        # # self.viewer.resolution = (1920, 1080)
+        # self.viewer.eye = (-3.0, 3.0, 1.3)
+        # self.viewer.lookat = (0.0, 0.0, 0.0)
+        # self.viewer.origin_type = "asset_root"
+        # self.viewer.asset_name = "robot"
+        # self.viewer.env_index = -1
 
         # disable randomization for play
         self.observations.policy.enable_corruption = False
