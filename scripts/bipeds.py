@@ -25,6 +25,7 @@ from isaaclab.sim import SimulationContext
 # Pre-defined configs
 ##
 from dyros_assets.robots.tocabi import Tocabi_CFG  # isort:skip
+from dyros_assets.robots.tocabi_xml import TocabiXML_CFG  # isort:skip
 
 
 def design_scene(sim: sim_utils.SimulationContext) -> tuple[list, torch.Tensor]:
@@ -38,12 +39,14 @@ def design_scene(sim: sim_utils.SimulationContext) -> tuple[list, torch.Tensor]:
 
     # Define origins
     origins = torch.tensor([
-        [0.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 1.0, 0.0],
     ]).to(device=sim.device)
 
     # Robots
-    tocabi = Articulation(Tocabi_CFG.replace(prim_path="/World/Tocabi"))
-    robots = [tocabi]
+    tocabi = Articulation(Tocabi_CFG.replace(prim_path="/World/TocabiUsd"))
+    tocabixml = Articulation(TocabiXML_CFG.replace(prim_path="/World/TocabiXml"))
+    robots = [tocabi, tocabixml]
 
     return robots, origins
 
